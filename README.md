@@ -1,36 +1,127 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# TRAILS Simple Group Calendar
 
-## Getting Started
+A full-stack event calendar application for the TRAILS library consortia. Built with Next.js, Neon (PostgreSQL), Clerk authentication, and FullCalendar.
 
-First, run the development server:
+## Features
+
+- **Public Calendar** — Embeddable calendar view with month, week, and list views
+- **Event Submission** — Authenticated users can submit events for approval
+- **Admin Approval** — Admins can approve, edit, or reject submitted events
+- **Role-Based Access** — Admin and contributor roles via Clerk metadata
+
+## Tech Stack
+
+- **Framework**: Next.js 14+ (App Router, TypeScript)
+- **Database**: Neon (serverless PostgreSQL) with Drizzle ORM
+- **Auth**: Clerk
+- **Calendar**: FullCalendar.io
+- **Styling**: Tailwind CSS
+
+## Setup
+
+### 1. Environment Variables
+
+Copy `.env.example` to `.env.local` and fill in your values:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cp .env.example .env.local
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Required variables:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- `DATABASE_URL` — Neon connection string
+- `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` — Clerk publishable key
+- `CLERK_SECRET_KEY` — Clerk secret key
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 2. Database Setup
 
-## Learn More
+Run the schema against your Neon database:
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+# Option 1: Using Neon SQL Editor
+# Copy contents of schema.sql and run in Neon console
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+# Option 2: Using psql
+psql $DATABASE_URL -f schema.sql
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+# Option 3: Using Drizzle (after setting DATABASE_URL)
+npx drizzle-kit push
+```
 
-## Deploy on Vercel
+### 3. Run Development Server
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+npm install
+npm run dev
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Open [http://localhost:3000](http://localhost:3000) to view the calendar.
+
+## User Roles
+
+### Promoting a User to Admin
+
+1. Go to [Clerk Dashboard](https://dashboard.clerk.com)
+2. Navigate to **Users** → select the user
+3. Click **Metadata** tab
+4. Set `publicMetadata` to:
+   ```json
+   { "role": "admin" }
+   ```
+5. Save changes
+
+### Role Capabilities
+
+| Role        | Submit Events | Edit Own Events | Approve Events | Edit All Events |
+| ----------- | ------------- | --------------- | -------------- | --------------- |
+| Guest       | ❌            | ❌              | ❌             | ❌              |
+| Contributor | ✅            | ✅              | ❌             | ❌              |
+| Admin       | ✅            | ✅              | ✅             | ✅              |
+
+Note: Any authenticated user without a role can submit events (treated as contributor).
+
+## Pages
+
+- `/` — Public calendar (embeddable)
+- `/dashboard` — Submit events and manage your submissions
+- `/admin` — Approve pending events and manage all events
+- `/sign-in` — Clerk sign-in page
+- `/sign-up` — Clerk sign-up page
+
+## Embedding in Wix
+
+Add an HTML iframe element to your Wix page:
+
+```html
+<iframe
+  src="https://your-vercel-deployment.vercel.app"
+  width="100%"
+  height="800"
+  frameborder="0"
+></iframe>
+```
+
+The public calendar page (`/`) is designed to be embedded — it has no navigation chrome.
+
+## API Endpoints
+
+| Method | Endpoint              | Auth     | Description                           |
+| ------ | --------------------- | -------- | ------------------------------------- |
+| GET    | `/api/events`         | Public   | Get approved events (with date range) |
+| POST   | `/api/events`         | Required | Submit a new event                    |
+| PUT    | `/api/events/[id]`    | Required | Update an event                       |
+| DELETE | `/api/events/[id]`    | Required | Delete an event                       |
+| GET    | `/api/events/pending` | Admin    | Get unapproved events                 |
+| GET    | `/api/events/mine`    | Required | Get current user's events             |
+
+## Deployment
+
+Deploy to Vercel:
+
+```bash
+vercel
+```
+
+Or connect your GitHub repo to Vercel for automatic deployments.
+
+Remember to add environment variables in Vercel project settings.
