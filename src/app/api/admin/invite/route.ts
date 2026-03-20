@@ -29,12 +29,20 @@ export async function POST(req: Request) {
     }
 
     const client = await clerkClient();
-    
+
+    // Determine the base URL for the redirect
+    const baseUrl =
+      process.env.NEXT_PUBLIC_APP_URL ||
+      (process.env.VERCEL_URL
+        ? `https://${process.env.VERCEL_URL}`
+        : "https://trails-group-calendar.vercel.app");
+
     const invitation = await client.invitations.createInvitation({
       emailAddress,
       publicMetadata: {
         role: "contributor",
       },
+      redirectUrl: `${baseUrl}/sign-up`,
       ignoreExisting: false,
     });
 
@@ -48,7 +56,7 @@ export async function POST(req: Request) {
     });
   } catch (error: unknown) {
     console.error("Error sending invitation:", error);
-    
+
     if (error && typeof error === "object" && "errors" in error) {
       const clerkError = error as { errors: Array<{ message: string; code: string }> };
       const firstError = clerkError.errors?.[0];
@@ -59,7 +67,7 @@ export async function POST(req: Request) {
         return corsResponse({ error: firstError.message }, 400);
       }
     }
-    
+
     return corsResponse({ error: "Failed to send invitation" }, 500);
   }
 }
