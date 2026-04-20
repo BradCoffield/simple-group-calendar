@@ -19,17 +19,22 @@ npx drizzle-kit push   # Push schema changes to Neon database
 
 ### Key Flows
 
-- **Public submission** (`/submit`) — unauthenticated users submit events; multi-layer spam protection (honeypot field, 3-second timer, rate limiting, validation); events land in pending state
-- **Admin panel** (`/admin`) — approve/reject pending events, manage all events, manage users; events submitted by admins auto-approve
-- **Calendar embed** (`/`) — public FullCalendar view; API routes have CORS headers for iframe embedding in Wix/WordPress
+- **Public submission** (`/submit`) — unauthenticated users submit events; multi-layer spam protection (honeypot `website` field, 3-second timer via `form_started_at`, in-memory rate limiting at 5/hour/IP, field validation); events always land in `approved: false` state
+- **Contributor dashboard** (`/dashboard`) — authenticated users submit events (go to admin review) and view/manage their own submissions
+- **Admin panel** (`/admin`) — approve/reject pending events, manage all events, manage users; events POSTed to `/api/events` (authenticated route) auto-approve
+- **Embed** (`/embed`) — minimal FullCalendar view (`EmbedCalendar`) designed for iframe embedding in Wix/WordPress; `/api/events` and `/api/events/public` both have CORS headers (`Access-Control-Allow-Origin: *`)
 
 ### Auth & Roles
 
-Roles live in Clerk `publicMetadata`. The `/api/webhooks/clerk` route listens for `user.created` and auto-assigns the `contributor` role via Svix-verified webhooks. Role helpers are in `src/lib/auth.ts` (`getUserRole`, `isAdmin`, `isContributor`, etc.). Role checks happen at both the page level and the API route level.
+Roles live in Clerk `publicMetadata.role` (`"admin"` | `"contributor"`). The `/api/webhooks/clerk` route listens for `user.created` and auto-assigns `contributor` via Svix-verified webhooks. Role helpers are in `src/lib/auth.ts` (`getUserRole`, `isAdmin`, `isContributor`, `isAdminOrContributor`, `getCurrentUserInfo`). Role checks happen at both the page level and the API route level.
+
+Public routes (no auth required, defined in `src/middleware.ts`): `/`, `/embed`, `/sign-in`, `/sign-up`, `/submit`, `/api/events` (GET), `/api/events/public` (POST).
 
 ### Database
 
-Single `events` table defined in `src/db/schema.ts` (Drizzle ORM). Connection in `src/db/index.ts` using `@neondatabase/serverless`. Schema changes: edit `src/db/schema.ts` then run `npx drizzle-kit push`. Generated migrations go in `/drizzle`.
+Single `events` table defined in `src/db/schema.ts` (Drizzle ORM). Key fields: `approved` (boolean, default false), `submitted_by_user_id` (set to `public:<email>` for anonymous submissions), `color` (hex, default `#00a99d`). Connection in `src/db/index.ts` using `@neondatabase/serverless`. Schema changes: edit `src/db/schema.ts` then run `npx drizzle-kit push`. Generated migrations go in `/drizzle`.
+
+> **Note:** Rate limiting in `/api/events/public` is in-memory (`Map`). It resets on cold starts and does not share state across serverless instances.
 
 ### Directory Structure
 
@@ -37,26 +42,28 @@ Single `events` table defined in `src/db/schema.ts` (Drizzle ORM). Connection in
 src/
 ├── app/
 │   ├── page.tsx              # Public calendar view
-│   ├── submit/               # Public event submission
+│   ├── embed/                # Minimal calendar for iframe embedding
+│   ├── submit/               # Public (unauthenticated) event submission
+│   ├── dashboard/            # Contributor event submission + my events
 │   ├── admin/                # Admin panel (role-gated)
 │   ├── sign-in/ sign-up/     # Clerk auth pages
 │   └── api/
-│       ├── events/           # CRUD: GET approved, POST create
+│       ├── events/           # CRUD: GET approved, POST create (auth, auto-approves)
 │       │   ├── [id]/         # PUT/DELETE single event
-│       │   ├── public/       # POST public submissions (spam checks)
+│       │   ├── public/       # POST public submissions (spam checks, never auto-approves)
 │       │   ├── pending/      # GET pending (admin only)
 │       │   └── mine/         # GET current user's events
 │       ├── admin/            # users, set-role, invite, delete-user
-│       └── webhooks/clerk/   # Auto-assign contributor role
+│       └── webhooks/clerk/   # Auto-assign contributor role on user.created
 ├── components/
-│   ├── calendar/             # FullCalendar display + event modal
+│   ├── calendar/             # Calendar.tsx, EmbedCalendar.tsx, EventModal.tsx
 │   ├── admin/                # PendingEventsTable, AllEventsTable, UsersTable
 │   ├── dashboard/            # EventForm, MyEventsTable
 │   └── ui/                   # ColorPicker
 ├── db/                       # Drizzle schema + Neon connection
 ├── lib/
-│   ├── auth.ts               # Role-checking helpers
-│   └── cors.ts               # CORS helpers for embed API
+│   ├── auth.ts               # Role-checking helpers (server-side, uses currentUser())
+│   └── cors.ts               # CORS helpers: corsResponse(), corsOptionsResponse()
 ├── styles/calendar.css       # FullCalendar overrides
 └── types/clerk.d.ts          # Clerk type augmentations
 ```

@@ -4,12 +4,28 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        source: "/(|submit)",
+        source: "/",
         headers: [
           {
             key: "Content-Security-Policy",
-            value:
-              "frame-ancestors 'self' https://*.wix.com https://*.wixsite.com https://*.wixstudio.com",
+            value: "frame-ancestors *",
+          },
+          {
+            key: "X-Frame-Options",
+            value: "ALLOWALL",
+          },
+        ],
+      },
+      {
+        source: "/embed",
+        headers: [
+          {
+            key: "Content-Security-Policy",
+            value: "frame-ancestors *",
+          },
+          {
+            key: "X-Frame-Options",
+            value: "ALLOWALL",
           },
         ],
       },
